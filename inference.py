@@ -71,7 +71,7 @@ def load_models(args, device):
 
 
 
-def predict(image_path, caption, clip_model, vis_processors, txt_processors, red_dot_model, device):
+def predict(image_path, caption, clip_model, vis_processors, txt_processors, red_dot_model, fusion_method, device):
     try:
         raw_image = Image.open(image_path).convert("RGB")
     except FileNotFoundError:
@@ -91,7 +91,6 @@ def predict(image_path, caption, clip_model, vis_processors, txt_processors, red
     image_embedding = image_embedding.reshape(image_embedding.shape[0], -1)
     text_embedding = text_embedding.reshape(text_embedding.shape[0], -1)
 
-    fusion_method = ["concat_1", "add", "sub", "mul"]
     model_input = prepare_input(
         fusion_method=fusion_method,
         fuse_evidence=[False],
@@ -108,7 +107,7 @@ def predict(image_path, caption, clip_model, vis_processors, txt_processors, red
         
     y_pred = y_v.item()
     confidence_score = 1/(1 + np.exp(-y_pred))
-    predicted_idx = (confidence_score > 0.5).astype(int)
+    predicted_idx = int(confidence_score > 0.5)
     predicted_label = LABEL_MAP[predicted_idx]
 
 
@@ -123,9 +122,10 @@ def predict(image_path, caption, clip_model, vis_processors, txt_processors, red
 
 def analyze_test_data(args, clip_model, vis_processors, txt_processors, red_dot_model, device):
     results = []
-    
+    fusion_method = ["concat_1","add", "sub", "mul"]
     print("\n" + "="*50)
     print(f"Running Analysis on Test Data from: {args.test_data_path}")
+    cprint(f"Fusion_Method: {fusion_method}", "yellow")
     print("="*50)
 
     if not os.path.isdir(args.test_data_path):
@@ -151,7 +151,7 @@ def analyze_test_data(args, clip_model, vis_processors, txt_processors, red_dot_
             ground_truth = f.read().strip().lower()
 
         start_time = time.time()
-        result = predict(image_file, caption, clip_model, vis_processors, txt_processors, red_dot_model, device)
+        result = predict(image_file, caption, clip_model, vis_processors, txt_processors, red_dot_model,fusion_method, device)
         inference_time = time.time() - start_time
         
         if result:
@@ -202,14 +202,3 @@ if __name__ == '__main__':
 
     analyze_test_data(args, clip_model, vis_processors, txt_processors, red_dot_model, device)
     
-    cprint("\n--- Example of a single prediction ---", "cyan")
-    single_image = os.path.join(args.test_data_path, 'sample1/Image.jpg')
-    single_caption = "Sri Lanka war: UN council backs rights abuses inquiry"
-    
-    if os.path.exists(single_image):
-        single_result = predict(single_image, single_caption, clip_model, vis_processors, txt_processors, red_dot_model, device)
-        print(f"Input Image: {single_image}")
-        print(f"Input Caption: '{single_caption}'")
-        print(f"Prediction Result: {single_result}")
-    else:
-        print(f"Could not run single prediction example, file not found: {single_image}")
