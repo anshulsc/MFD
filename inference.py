@@ -84,9 +84,12 @@ def predict(image_path, caption, clip_model, vis_processors, txt_processors, red
     sample = {"image": image, "text_input": [text]}
     
 
-    clip_features = clip_model.extract_features(sample, mode="multimodal")
-    image_embedding = clip_features.image_embeds_proj[:, 0]
-    text_embedding = clip_features.text_embeds_proj[:, 0]
+    clip_features = clip_model.extract_features(sample)
+    image_embedding = clip_features.image_embeds_proj
+    text_embedding = clip_features.text_embeds_proj
+    
+    image_embedding = image_embedding.reshape(image_embedding.shape[0], -1)
+    text_embedding = text_embedding.reshape(text_embedding.shape[0], -1)
 
     fusion_method = ["concat_1", "add", "sub", "mul"]
     model_input = prepare_input(
@@ -94,14 +97,17 @@ def predict(image_path, caption, clip_model, vis_processors, txt_processors, red
         fuse_evidence=[False],
         use_evidence=0,
         images=image_embedding,
-        texts=text_embedding
+        texts=text_embedding,
+        X_images=None,
+        X_texts=None,
     )
 
     with torch.no_grad():
-        output_logit, _ = red_dot_model(model_input, inference=True)
-
-
-    confidence_score = torch.sigmoid(output_logit).item()
+        y_v, _ = red_dot_model(model_input, inference=True)
+        
+        
+    y_pred = y_v.item()
+    confidence_score = 1/(1 + np.exp(-y_pred))
     predicted_idx = (confidence_score > 0.5).astype(int)
     predicted_label = LABEL_MAP[predicted_idx]
 
